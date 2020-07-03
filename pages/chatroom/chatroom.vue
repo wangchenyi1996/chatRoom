@@ -2,7 +2,7 @@
 	<view>
 		<view class="status-bar">
 			<navigator open-type="navigateBack" class="login-c" hover-class="none">
-				<image src="../../static/back.png" class="login-back"></image> 
+				<image src="../../static/back.png" class="login-back"></image>
 			</navigator>
 			<scroll-view scroll-x="true" class="scrollv">
 				<view class="users">
@@ -10,37 +10,40 @@
 						<view class="tip" v-if="e.tip"></view>
 						<image :src="'../../static/images/'+e.img+'.png'"></image>
 					</view>
-
 				</view>
 			</scroll-view>
 		</view>
+		<!-- 聊天列表 -->
 		<view class="main">
-			<view v-for="(e,index) in chat" :key="index">
-				<view class="left msg" v-if="e.id ==1">
-					<image :src="'../../static/images/'+e.img+'.png'"></image>
-					<view class="nr">
-						<view class="neir">
-							{{e.neir}}
+			<scroll-view id="scrollview" scroll-y :scroll-top="scrollTop" :scroll-with-animation="true" :style="{height:style.contentH+'px'}">
+				<view v-for="(e,index) in chat" :key="index" class="chat-item">
+					<view class="left msg" v-if="e.id ==1">
+						<image :src="'../../static/images/'+e.img+'.png'"></image>
+						<view class="nr">
+							<view class="neir">
+								{{e.neir}}
+							</view>
+							<view class="nt">{{e.name}} {{timeDetia(e.time)}}</view>
 						</view>
-						<view class="nt">{{e.name}} {{timeDetia(e.time)}}</view>
+					</view>
+					<view class="right msg" v-if="e.id==2">
+						<image :src="'../../static/images/'+e.img+'.png'"></image>
+						<view class="nr">
+							<view class="neir">
+								{{e.neir}}
+							</view>
+							<view class="nt">{{timeDetia(e.time)}}</view>
+						</view>
+					</view>
+					<view class="center" v-if="e.id==3">
+						<view class="inner">{{e.name}}</view>
 					</view>
 				</view>
-				<view class="right msg" v-if="e.id==2">
-					<image :src="'../../static/images/'+e.img+'.png'"></image>
-					<view class="nr">
-						<view class="neir">
-							{{e.neir}}
-						</view>
-						<view class="nt">{{timeDetia(e.time)}}</view>
-					</view>					
-				</view>
-				<view class="center" v-if="e.id==3">
-					<view class="inner">{{e.name}}</view>				
-				</view>
-			</view>	
+			</scroll-view>
 		</view>
 		<view class="send">
-			<textarea type="text" confirm-type="send" class="chat-send"  v-model="chatm" auto-height="true" show-confirm-bar="false" maxlength="-1" />
+			<textarea type="text" confirm-type="send" class="chat-send" v-model="chatm" auto-height="true" show-confirm-bar="false"
+			 maxlength="-1" />
 			<image src="../../static/send.png" mode="aspectFit" @tap="sendMsg"></image>
 		</view>
 		<!-- 弹出层一对一聊天 -->
@@ -150,9 +153,12 @@
 						id:'c',
 					}
 				],
-				otochat:[
-					
-				]
+				otochat:[],
+				scrollTop:0,
+				style:{
+					contentH:0,
+					itemH:0
+				},
 			}
 		},
 		onLoad: function (e) {
@@ -165,7 +171,37 @@
 			this.getmsg();
 			this.quit();
 		},
+		onReady() {
+			// 初始化参数
+			try {
+				const res = uni.getSystemInfoSync();
+				this.style.contentH=res.windowHeight - uni.upx2px(230);
+			} catch (e) { 
+				console.log(e);
+			}
+			this.pageToBottom(true);
+		},
 		methods: {
+			pageToBottom(isfirst = false){
+				let q=uni.createSelectorQuery().in(this);
+				let itemH = q.selectAll('.chat-item');
+				this.$nextTick(()=>{
+					itemH.fields({
+						size:true
+					},data => {
+						if (data) {
+							if (isfirst) {
+								for (let i = 0; i < data.length; i++) {
+									this.style.itemH += data[i].height;
+								}
+							}else{
+								this.style.itemH += data[data.length-1].height;
+							}
+							this.scrollTop = (this.style.itemH > this.style.contentH) ? this.style.itemH : 0;
+						}
+					}).exec();
+				})
+			},
 			timeDetia: function(date){
 				var time;
 				var d = new Date(date);
@@ -259,7 +295,8 @@
 					this.otochat.push(onemsg);
 					this.chatm = '';//清空
 					this.socket.emit('msg',data);
-				}		
+				}
+				this.pageToBottom()
 			},
 			//加入群
 			join: function(name,img){
@@ -269,7 +306,6 @@
 			welcome: function(){
 				//获取即时信息渲染
 				this.socket.on('welcome', (name,users) => {
-					// console.log(data)
 					// console.log('数字'+len)
 					//插入欢迎信息
 					let wel = {
@@ -284,6 +320,7 @@
 					}
 					this.users = users;
 					console.log(this.users)
+					this.pageToBottom();
 				})
 			},
 			//获取自己
@@ -294,7 +331,7 @@
 					// console.log('数字'+len)
 					//插入欢迎信息
 					this.uid = id;
-					console.log(this.uid);
+					// console.log(this.uid);
 					let wel = {
 						name:'欢迎 '+name+' 加入群聊',
 						id:3,
@@ -307,6 +344,7 @@
 					}
 					this.users = users;
 					console.log(this.users)
+					this.pageToBottom();
 				})
 			},
 			//退出群提醒
@@ -328,6 +366,7 @@
 				//获取即时信息渲染
 				this.socket.on('sendMsg', data => {
 					this.chat.push(data);
+					this.pageToBottom()
 				})
 			},
 			//获取一对一消息
@@ -442,7 +481,7 @@
 		}
 	}
 	.main{
-		padding: 160rpx 28rpx 160rpx;
+		padding: 120rpx 28rpx;
 	}
 	.main,.modfiy-mian{
 	
@@ -462,11 +501,12 @@
 			.nr{
 				.neir{
 					max-width:380rpx;
-					padding:26rpx 32rpx;
+					padding:16rpx 32rpx;
 					min-height:48rpx;
 					font-size:28rpx;
 					color:rgba(25,29,35,1);
 					line-height:40rpx;
+					word-break: break-word;
 				}
 				.nt{
 					padding-top: 8rpx;
@@ -496,7 +536,7 @@
 		}
 		.center{
 			text-align: center;
-			padding: 32rpx 0 20rpx;
+			// padding: 32rpx 0 20rpx;
 			.inner{
 				font-size:24rpx;
 				display: inline-block;
